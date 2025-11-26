@@ -2,12 +2,12 @@
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
-            new ClientSample();
-
+            var client = new ClientSample();
+            await client.RunAsync();
             Console.ReadKey();
         }
-        
+
     }
 }

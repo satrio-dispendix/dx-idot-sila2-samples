@@ -1,22 +1,23 @@
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Sila2.Dx.Idot.Sila.Dispensing.Platetraycontroller.V1;
 using Sila2.Org.Silastandard;
+using Sila2.Org.Silastandard.Core.Errorrecoveryservice.V2;
+using SiLA2.Server.Utils;
 using SiLA2.Utils.gRPC;
+using System.Reflection;
 using Abortprocesscontroller = Sila2.Dx.Idot.Sila.Dispensing.Abortprocesscontroller.V1;
 using Barcodereaderservice = Sila2.Dx.Idot.Sila.Dispensing.Barcodereaderservice.V1;
+using Boolean = Sila2.Org.Silastandard.Boolean;
 using DispensingService = Sila2.Dx.Idot.Sila.Dispensing.Dispensingservice.V1;
 using InitializationController = Sila2.Dx.Idot.Sila.Dispensing.Initializationcontroller.V1;
 using Instrumentstatusprovider = Sila2.Dx.Idot.Sila.Dispensing.Instrumentstatusprovider.V1;
 using PlateLoadingController = Sila2.Dx.Idot.Sila.Dispensing.Platetraycontroller.V1;
 using ShutdownController = Sila2.Dx.Idot.Sila.Dispensing.Shutdowncontroller.V1;
 using SiLAService = Sila2.Org.Silastandard.Core.Silaservice.V1;
-using Boolean = Sila2.Org.Silastandard.Boolean;
-using Microsoft.Extensions.DependencyInjection;
-using Sila2.Org.Silastandard.Core.Errorrecoveryservice.V2;
-using SiLA2.Server.Utils;
 using String = Sila2.Org.Silastandard.String;
-using Sila2.Dx.Idot.Sila.Dispensing.Platetraycontroller.V1;
 
 public class ClientSample
 {
@@ -61,20 +62,82 @@ public class ClientSample
             return;
         }
 
-        // Initialize device and execute sample protocol
-        InitIDotDevice(true).Wait();
-        int i = 1;
+
+    }
+
+    public async Task RunAsync()
+    {
         while (true)
         {
-            Console.WriteLine("******************************************Executing   " + i + "*************************************************************");
-            OpenTray("Source").Wait();
-            OpenTray("Target").Wait();
-            CloseTray().Wait();
-            DispenseProtocol(filePath, false).Wait();
-            CheckStatus("Idle");
-            DropDetectionResult();
-            i += 1;
+            Console.WriteLine("Available commands:");
+            PrintAvailableCommands();
+
+            Console.WriteLine("Enter command:");
+            string? input = Console.ReadLine();
+
+            if (string.IsNullOrWhiteSpace(input))
+                return;
+
+            string[] parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            string functionName = parts[0];
+            string[] fnArgs = parts.Length > 1 ? parts[1..] : Array.Empty<string>();
+
+            await ExecuteCommand(functionName, fnArgs);   // <-- AWAIT HERE
         }
+    }
+
+    public void PrintAvailableCommands()
+    {
+        var excluded = new HashSet<string>
+        {
+            "RunAsync",
+            "PrintAvailableCommands",
+            "ExecuteCommand"
+        };
+
+        var methods = this.GetType()
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(m => !excluded.Contains(m.Name));
+
+        foreach (var method in methods)
+        {
+            var parameters = method.GetParameters();
+            string paramList = string.Join(", ",
+                parameters.Select(p => $"{p.Name}:{p.ParameterType.Name}"));
+
+            Console.WriteLine($" - {method.Name}({paramList})");
+        }
+    }
+
+
+    public async Task ExecuteCommand(string functionName, params string[] args)
+    {
+        // Get method info using reflection
+        MethodInfo? method = this.GetType().GetMethod(functionName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+
+        if (method == null)
+        {
+            Console.WriteLine($"Method '{functionName}' not found.");
+            return;
+        }
+
+        // Match parameter types
+        ParameterInfo[] parameters = method.GetParameters();
+        object?[] convertedArgs = new object?[parameters.Length];
+
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            // only string parameters in this example
+            convertedArgs[i] = Convert.ChangeType(args[i], parameters[i].ParameterType);
+        }
+
+        // Invoke method (handle async Task)
+        var result = method.Invoke(this, convertedArgs);
+
+        if (result is Task task)
+            await task;
     }
 
     /// <summary>

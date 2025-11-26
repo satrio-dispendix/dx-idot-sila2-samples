@@ -152,7 +152,18 @@ public class ClientSample
         IConfigurationBuilder? configBuilder = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", true, true);
+        
+
+        Console.WriteLine("Enter server address:");
+        string? address = Console.ReadLine();
+        var overrides = new Dictionary<string, string?>
+            {
+                { "Connection:FQHN", address }
+            };
+        configBuilder.AddInMemoryCollection(overrides);
+
         _configuration = configBuilder.Build();
+
         string? fqhn = _configuration["Connection:FQHN"];
         int port = int.Parse(_configuration["Connection:Port"]);
 
